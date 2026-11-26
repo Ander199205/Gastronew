@@ -71,3 +71,7 @@ export const errKey = (e: unknown) => {
   const m = (e as { message?: string })?.message || String(e);
   return m.split(':')[0].trim();
 };
+
+/** Enlace público a una ruta de la app (en la demo, un dominio de ejemplo). */
+export const guestUrl = (path: string) =>
+  import.meta.env.VITE_DEMO === '1' ? `https://gastro.abwebsolutions.cloud${path}` : `${window.location.origin}${path}`;
