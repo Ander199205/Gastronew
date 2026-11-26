@@ -67,15 +67,17 @@ const rpc = {
 };
 function b64(o) { return Buffer.from(JSON.stringify(o)).toString('base64url'); }
 const exp = Math.floor(Date.now() / 1000) + 3600;
-const jwt = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: 'u1', role: 'authenticated', exp, aud: 'authenticated', email: 'carmen@test' })}.sig`;
-const user = { id: 'u1', aud: 'authenticated', role: 'authenticated', email: 'carmen@test', app_metadata: {}, user_metadata: {}, created_at: now() };
-
+const users = { 'carmen@test': 'u1', 'lucia@test': 'u2' };
+const mkUser = (email) => ({ id: users[email] || 'u1', aud: 'authenticated', role: 'authenticated', email, app_metadata: {}, user_metadata: {}, created_at: now() });
+const mkJwt = (u) => `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: u.id, role: 'authenticated', exp, aud: 'authenticated', email: u.email })}.sig`;
+let current = mkUser('carmen@test');
 async function install(context) {
-  await context.route(/supabase\.co\/(rest|auth|realtime)\//, async (route) => {
+  await context.route(/supabase\.co\/(rest|auth|realtime|storage)\//, async (route) => {
     const req = route.request(); const u = new URL(req.url());
     const send = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-    if (u.pathname.startsWith('/auth/v1/token')) return send(200, { access_token: jwt, token_type: 'bearer', expires_in: 3600, expires_at: exp, refresh_token: 'r', user });
-    if (u.pathname.startsWith('/auth/v1/user')) return send(200, user);
+    if (u.pathname.startsWith('/auth/v1/token')) { current = mkUser(JSON.parse(req.postData() || '{}').email || 'carmen@test'); return send(200, { access_token: mkJwt(current), token_type: 'bearer', expires_in: 3600, expires_at: exp, refresh_token: 'r', user: current }); }
+    if (u.pathname.startsWith('/auth/v1/user')) return send(200, current);
+    if (u.pathname.startsWith('/storage/v1/object/')) return send(200, { Key: u.pathname.replace('/storage/v1/object/', ''), Id: 'x' });
     if (u.pathname.startsWith('/auth/v1/logout')) return send(204, {});
     const m = u.pathname.match(/^\/rest\/v1\/rpc\/(\w+)/);
     if (m) {
@@ -84,6 +86,13 @@ async function install(context) {
     }
     const t = u.pathname.match(/^\/rest\/v1\/(\w+)/);
     if (t) {
+      const method = req.method();
+      if (method === 'POST') {
+        const body = JSON.parse(req.postData() || '[]'); const arr = Array.isArray(body) ? body : [body];
+        const ins = arr.map(r => ({ id: id(t[1].slice(0, 2)), active: true, sold_out: false, ...r })); (db[t[1]] ||= []).push(...ins); return send(201, ins);
+      }
+      if (method === 'PATCH') { const patch = JSON.parse(req.postData() || '{}'); const rows = filt(db[t[1]] || [], u.searchParams); rows.forEach(r => Object.assign(r, patch)); return send(200, rows); }
+      if (method === 'DELETE') { const rows = filt(db[t[1]] || [], u.searchParams); db[t[1]] = db[t[1]].filter(r => !rows.includes(r)); return send(200, rows); }
       const rows = filt(db[t[1]] || [], u.searchParams);
       if ((req.headers()['accept'] || '').includes('vnd.pgrst.object')) {
         if (!rows.length) return send(406, { code: 'PGRST116', message: 'no rows', details: 'The result contains 0 rows' });

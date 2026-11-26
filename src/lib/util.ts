@@ -26,10 +26,21 @@ const FONTS: Record<string, string> = {
 };
 export const fontStack = (name?: string) => FONTS[name || ''] || FONTS['Instrument Sans'];
 
+/** Texto legible (negro o blanco) sobre un color de fondo. */
+export function onColor(hex: string) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return '#fff';
+  const n = parseInt(m[1], 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? '#111' : '#fff';
+}
+
 /** Variables CSS del tema de cada restaurante. */
 export function themeVars(t: Theme): React.CSSProperties {
   const dark = t.mode === 'dark';
   return {
+    '--c-on-primary': onColor(t.primary || '#B4532A'),
+    '--c-on-accent': onColor(t.accent || '#2F6B4F'),
     '--c-primary': t.primary || '#B4532A',
     '--c-accent': t.accent || '#2F6B4F',
     '--c-bg': t.bg || (dark ? '#111' : '#FBF6EF'),

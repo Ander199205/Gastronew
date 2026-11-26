@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import type { Staff } from '../lib/types';
 import { useService } from './useService';
 import { Kitchen, MenuToggles, Orders, QrCodes, Tables } from './views';
+import Manage from './manage/Manage';
 import '../styles/staff.css';
 
 export default function StaffApp() {
@@ -120,6 +121,7 @@ function Signed({ userId, email }: { userId: string; email: string }) {
         <NavLink to="/app/kueche">Küche{kitchenCount > 0 && <i>{kitchenCount}</i>}</NavLink>
         <NavLink to="/app/karte">Karte</NavLink>
         {isManager && <NavLink to="/app/qr">QR-Codes</NavLink>}
+        {isManager && <NavLink to="/app/verwaltung">Verwaltung</NavLink>}
       </nav>
       <main className="s-main">
         <Routes>
@@ -130,6 +132,7 @@ function Signed({ userId, email }: { userId: string; email: string }) {
           <Route path="kueche" element={<Kitchen svc={svc} />} />
           <Route path="karte" element={<MenuToggles svc={svc} />} />
           <Route path="qr" element={isManager ? <QrCodes svc={svc} /> : <Navigate to="/app" replace />} />
+          <Route path="verwaltung/*" element={isManager && rid ? <Manage rid={rid} onChanged={svc.reload} /> : <Navigate to="/app" replace />} />
           <Route path="*" element={<Navigate to="/app" replace />} />
         </Routes>
       </main>
