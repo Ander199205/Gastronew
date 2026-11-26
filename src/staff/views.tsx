@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 import { supabase } from '../lib/supabase';
 import { GUEST_I18N } from '../i18n/guest';
 import type { Message, Order, OrderStatus, TableRow, Visit } from '../lib/types';
-import { eur, fill, minutesSince, timeHM, tx } from '../lib/util';
+import { eur, fill, guestUrl, minutesSince, timeHM, tx } from '../lib/util';
 import type { useService } from './useService';
 
 type Svc = ReturnType<typeof useService>;
@@ -292,7 +292,7 @@ export function MenuToggles({ svc }: { svc: Svc }) {
 export function QrCodes({ svc }: { svc: Svc }) {
   const slug = svc.data.restaurant?.slug;
   const [imgs, setImgs] = useState<Record<string, string>>({});
-  const links = useMemo(() => Object.fromEntries(svc.data.tables.map((t) => [t.id, `${window.location.origin}/r/${slug}/mesa/${t.number}?k=${t.qr_key}`])), [svc.data.tables, slug]);
+  const links = useMemo(() => Object.fromEntries(svc.data.tables.map((t) => [t.id, guestUrl(`/r/${slug}/mesa/${t.number}?k=${t.qr_key}`)])), [svc.data.tables, slug]);
   useEffect(() => {
     if (!slug) return;
     Promise.all(Object.entries(links).map(async ([id, url]) => [id, await QRCode.toDataURL(url, { margin: 1, width: 360 })] as const))

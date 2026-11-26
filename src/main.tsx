@@ -9,8 +9,19 @@ import Home from './Home';
 
 const GuestApp = lazy(() => import('./guest/GuestApp'));
 const StaffApp = lazy(() => import('./staff/StaffApp'));
+const DemoHome = lazy(() => import('./demo/DemoHome'));
+const DEMO = import.meta.env.VITE_DEMO === '1';
+
+if (DEMO) {
+  // En la demo (dentro de un visor) no hay diálogos del navegador: se confirma siempre.
+  window.confirm = () => true;
+  window.alert = (m?: unknown) => console.warn(m);
+}
 
 createRoot(document.getElementById('root')!).render(
+  DEMO ? (
+    <StrictMode><Suspense fallback={<div className="boot">…</div>}><DemoHome /></Suspense></StrictMode>
+  ) : (
   <StrictMode>
     <BrowserRouter>
       <Suspense fallback={<div className="boot">…</div>}>
@@ -26,5 +37,6 @@ createRoot(document.getElementById('root')!).render(
         </Routes>
       </Suspense>
     </BrowserRouter>
-  </StrictMode>,
+  </StrictMode>
+  ),
 );

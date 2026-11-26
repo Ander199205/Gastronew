@@ -9,8 +9,9 @@ Plataforma multi-restaurante de **abWeb solutions**: carta digital por QR, pedid
 | `/r/<restaurante>/mesa/<n>?k=<clave>` | Cliente (QR de la mesa): check-in, carta con fotos y alérgenos, pedido, chat, cuenta, planes cerca | DE, EN, ES, IT, FR, TR |
 | `/r/<restaurante>` | Carta sin pedir (enlace web, plan Carta) | igual |
 | `/app` | Personal: mesas, pedidos, cocina, agotados, QR de las mesas (PWA) | Alemán |
+| `/app/verwaltung` | Dueño o encargado: carta (platos, precios, IVA, fotos, alérgenos, idiomas), restaurante y diseño, mesas, planes cercanos | Alemán |
 
-Pendiente (siguientes fases): panel del restaurante (carta, precios, fotos, marca), panel admin de abWeb para dar de alta restaurantes, reservas, valoraciones por email.
+Pendiente (siguientes fases): alta de personal desde el panel, panel admin de abWeb para dar de alta restaurantes, reservas, valoraciones por email.
 
 ## Cómo está hecho
 

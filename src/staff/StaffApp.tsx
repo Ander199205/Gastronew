@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { NavLink, Navigate, Route, Routes, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { DEMO, supabase } from '../lib/supabase';
 import type { Staff } from '../lib/types';
 import { useService } from './useService';
 import { Kitchen, MenuToggles, Orders, QrCodes, Tables } from './views';
+import Manage from './manage/Manage';
 import '../styles/staff.css';
 
 export default function StaffApp() {
@@ -22,6 +23,11 @@ export default function StaffApp() {
 }
 
 function Login() {
+  const [sp] = useSearchParams();
+  useEffect(() => {
+    const as = sp.get('as');
+    if (DEMO && as) supabase.auth.signInWithPassword({ email: `${as}@casalucia.demo`, password: 'demo' });
+  }, [sp]);
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [err, setErr] = useState('');
@@ -43,6 +49,14 @@ function Login() {
         <label>Passwort<input type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} required /></label>
         {err && <p className="s-err">{err}</p>}
         <button className="s-btn primary" disabled={busy}>{busy ? 'Anmelden…' : 'Anmelden'}</button>
+        {DEMO && (
+          <div className="s-demo-login">
+            <span>Demo-Zugänge</span>
+            {[['Carmen (Service)', 'carmen'], ['Küche', 'kueche'], ['Lucía (Inhaberin)', 'lucia']].map(([l, u]) => (
+              <button type="button" key={u} className="s-btn" onClick={() => supabase.auth.signInWithPassword({ email: `${u}@casalucia.demo`, password: 'demo' })}>{l}</button>
+            ))}
+          </div>
+        )}
         <small>abWeb Gastro · eine Plattform von abWeb solutions</small>
       </form>
     </div>
@@ -120,6 +134,7 @@ function Signed({ userId, email }: { userId: string; email: string }) {
         <NavLink to="/app/kueche">Küche{kitchenCount > 0 && <i>{kitchenCount}</i>}</NavLink>
         <NavLink to="/app/karte">Karte</NavLink>
         {isManager && <NavLink to="/app/qr">QR-Codes</NavLink>}
+        {isManager && <NavLink to="/app/verwaltung">Verwaltung</NavLink>}
       </nav>
       <main className="s-main">
         <Routes>
@@ -130,6 +145,7 @@ function Signed({ userId, email }: { userId: string; email: string }) {
           <Route path="kueche" element={<Kitchen svc={svc} />} />
           <Route path="karte" element={<MenuToggles svc={svc} />} />
           <Route path="qr" element={isManager ? <QrCodes svc={svc} /> : <Navigate to="/app" replace />} />
+          <Route path="verwaltung/*" element={isManager && rid ? <Manage rid={rid} onChanged={svc.reload} /> : <Navigate to="/app" replace />} />
           <Route path="*" element={<Navigate to="/app" replace />} />
         </Routes>
       </main>
