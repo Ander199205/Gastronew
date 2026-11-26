@@ -1,0 +1,11 @@
+{
+  "name": "abWeb Gastro Service",
+  "short_name": "Gastro Service",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#080d17",
+  "theme_color": "#0d1421",
+  "lang": "de",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
