@@ -1,9 +1,9 @@
 // Backend falso de Supabase para probar la interfaz (el contenedor no llega a supabase.co)
 const fx = require('./fixtures.json');
 const db = {
-  restaurants: [fx.restaurant], menu_categories: fx.cats.map(c => ({ ...c, restaurant_id: 'r1', active: true })),
+  restaurants: [{ ...fx.restaurant, active: true }], menu_categories: fx.cats.map(c => ({ ...c, restaurant_id: 'r1', active: true })),
   menu_items: fx.items.map(i => ({ ...i, restaurant_id: 'r1' })), nearby_places: fx.nearby.map(n => ({ ...n, restaurant_id: 'r1', active: true })),
-  tables: fx.tables, staff: fx.staff, platform_admins: [], visits: [], orders: [], order_items: [], messages: [],
+  tables: fx.tables, staff: fx.staff, platform_admins: [{ user_id: 'u9' }], visits: [], orders: [], order_items: [], messages: [],
 };
 let seq = 1; const id = p => `${p}${seq++}`; const now = () => new Date().toISOString();
 function filt(rows, params) {
@@ -63,20 +63,42 @@ const rpc = {
   staff_close_visit(a) { const v = db.visits.find(v => v.id === a.p_visit); v.status = 'closed'; v.closed_at = now(); return null; },
   staff_open_visit(a) { let v = db.visits.find(v => v.table_id === a.p_table && v.status !== 'closed'); if (!v) { v = { id: id('v'), restaurant_id: 'r1', table_id: a.p_table, waiter_id: 's1', guest_token: id('tok'), guest_name: null, guests: a.p_guests, language: 'de', opened_by: 'waiter', status: 'open', tip_percent: 0, created_at: now() }; db.visits.push(v); } return v.id; },
   staff_place_order(a) { return insertOrder(db.visits.find(v => v.id === a.p_visit), a.p_items, a.p_note, 'waiter', 's1'); },
+  admin_overview() { return db.restaurants.map(r => ({ ...r, staff: db.staff.filter(x => x.restaurant_id === r.id && x.active !== false).length, tables: db.tables.filter(x => (x.restaurant_id || 'r1') === r.id).length, items: db.menu_items.filter(x => x.restaurant_id === r.id).length, visits_30d: 0, orders_30d: 0, last_activity: null, created_at: r.created_at || now() })); },
   staff_set_sold_out(a) { db.menu_items.find(i => i.id === a.p_item).sold_out = a.p_sold_out; return null; },
 };
 function b64(o) { return Buffer.from(JSON.stringify(o)).toString('base64url'); }
 const exp = Math.floor(Date.now() / 1000) + 3600;
-const users = { 'carmen@test': 'u1', 'lucia@test': 'u2' };
-const mkUser = (email) => ({ id: users[email] || 'u1', aud: 'authenticated', role: 'authenticated', email, app_metadata: {}, user_metadata: {}, created_at: now() });
+const users = { 'carmen@test': 'u1', 'lucia@test': 'u2', 'admin@test': 'u9', 'neu@test': 'u10' };
+const meta = { u10: { must_change_password: true } };
+const mkUser = (email) => ({ id: users[email] || 'u1', aud: 'authenticated', role: 'authenticated', email, app_metadata: {}, user_metadata: meta[users[email]] || {}, created_at: now() });
+const calls = [];
+const fn = {
+  'staff-admin'(b) {
+    calls.push(b);
+    if (b.action === 'create_staff') { const sid = 'sx' + Math.random().toString(36).slice(2, 7); db.staff.push({ id: sid, restaurant_id: b.restaurant_id, user_id: id('u'), display_name: b.display_name, role: b.role, email: b.email, active: true }); return { staff_id: sid, email: b.email, password: 'abcd-efgh-jkmn', existing: false }; }
+    if (b.action === 'reset_password') return { email: 'carmen@test', password: 'pqrs-tuvw-xyz2' };
+    if (b.action === 'create_restaurant') {
+      if (db.restaurants.some(r => r.slug === b.slug)) { const e = new Error('slug_taken'); e.status = 409; throw e; }
+      const rid = id('r'); db.restaurants.push({ ...db.restaurants[0], id: rid, slug: b.slug, name: b.name, plan: b.plan, city: b.city, active: true });
+      for (let i = 1; i <= b.tables; i++) db.tables.push({ id: id('t'), restaurant_id: rid, number: i, seats: 4, qr_key: 'k' + i });
+      db.staff.push({ id: id('s'), restaurant_id: rid, user_id: id('u'), display_name: b.owner_name, role: 'owner', email: b.owner_email, active: true });
+      return { restaurant_id: rid, slug: b.slug, email: b.owner_email, password: 'owne-rpas-swd2', existing: false };
+    }
+  },
+};
 const mkJwt = (u) => `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: u.id, role: 'authenticated', exp, aud: 'authenticated', email: u.email })}.sig`;
 let current = mkUser('carmen@test');
 async function install(context) {
-  await context.route(/supabase\.co\/(rest|auth|realtime|storage)\//, async (route) => {
+  await context.route(/supabase\.co\/(rest|auth|realtime|storage|functions)\//, async (route) => {
     const req = route.request(); const u = new URL(req.url());
     const send = (status, body) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     if (u.pathname.startsWith('/auth/v1/token')) { current = mkUser(JSON.parse(req.postData() || '{}').email || 'carmen@test'); return send(200, { access_token: mkJwt(current), token_type: 'bearer', expires_in: 3600, expires_at: exp, refresh_token: 'r', user: current }); }
-    if (u.pathname.startsWith('/auth/v1/user')) return send(200, current);
+    if (u.pathname.startsWith('/auth/v1/user')) {
+      if (req.method() === 'PUT') { const b = JSON.parse(req.postData() || '{}'); current = { ...current, user_metadata: { ...current.user_metadata, ...(b.data || {}) } }; meta[current.id] = current.user_metadata; }
+      return send(200, current);
+    }
+    const f = u.pathname.match(/^\/functions\/v1\/([\w-]+)/);
+    if (f) { try { return send(200, fn[f[1]](JSON.parse(req.postData() || '{}'))); } catch (e) { return send(e.status || 400, { error: e.message }); } }
     if (u.pathname.startsWith('/storage/v1/object/')) return send(200, { Key: u.pathname.replace('/storage/v1/object/', ''), Id: 'x' });
     if (u.pathname.startsWith('/auth/v1/logout')) return send(204, {});
     const m = u.pathname.match(/^\/rest\/v1\/rpc\/(\w+)/);
@@ -103,4 +125,4 @@ async function install(context) {
     return route.abort();
   });
 }
-module.exports = { install, db };
+module.exports = { install, db, calls };

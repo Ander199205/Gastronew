@@ -13,7 +13,8 @@ function freshDb(): Db {
     menu_categories: fx.cats.map((c) => ({ ...c, restaurant_id: 'r1', active: true })),
     menu_items: fx.items.map((i) => ({ ...i, restaurant_id: 'r1', sold_out: false, created_at: new Date().toISOString() })),
     nearby_places: fx.nearby.map((n, i) => ({ ...n, restaurant_id: 'r1', active: true, position: i })),
-    tables: fx.tables as Row[], staff: fx.staff as Row[], platform_admins: [],
+    tables: fx.tables as Row[], staff: fx.staff.map((x) => ({ ...x, email: `${x.user_id === 'u1' ? 'carmen' : x.user_id === 'u2' ? 'lucia' : 'kueche'}@casalucia.demo` })) as Row[],
+    platform_admins: [{ id: 'pa1', user_id: 'u4' }],
     visits: [], orders: [], order_items: [], messages: [],
   } as unknown as Db;
 }
@@ -137,11 +138,42 @@ const RPC: Record<string, (a: Record<string, unknown>) => unknown> = {
     return v.id;
   },
   staff_place_order(a) { return insertOrder(T().visits.find((v) => v.id === a.p_visit)!, a.p_items as never, a.p_note as string, 'waiter', myStaff()); },
+  admin_overview() {
+    return T().restaurants.map((r) => ({ ...r, staff: T().staff.filter((x) => x.restaurant_id === r.id && x.active).length,
+      tables: T().tables.filter((x) => (x.restaurant_id ?? 'r1') === r.id).length, items: T().menu_items.filter((x) => x.restaurant_id === r.id).length,
+      visits_30d: T().visits.filter((x) => x.restaurant_id === r.id).length, orders_30d: T().orders.filter((x) => x.restaurant_id === r.id).length,
+      last_activity: T().visits.filter((x) => x.restaurant_id === r.id).map((x) => x.created_at as string).sort().pop() ?? null, created_at: r.created_at ?? now() }));
+  },
   staff_set_sold_out(a) { T().menu_items.find((i) => i.id === a.p_item)!.sold_out = a.p_sold_out; return null; },
 };
 
 // ------------------------------------------------------------ auth (cuentas de demo)
-const DEMO_USERS: Record<string, string> = { 'carmen@casalucia.demo': 'u1', 'lucia@casalucia.demo': 'u2', 'kueche@casalucia.demo': 'u3' };
+const DEMO_USERS: Record<string, string> = { 'carmen@casalucia.demo': 'u1', 'lucia@casalucia.demo': 'u2', 'kueche@casalucia.demo': 'u3', 'admin@casalucia.demo': 'u4' };
+const demoPw = () => `demo-${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}`;
+
+/** Edge Function staff-admin simulada (sin cuentas reales: el e-mail nuevo no puede entrar en la demo). */
+const FUNCTIONS: Record<string, (b: Record<string, unknown>) => unknown> = {
+  'staff-admin'(b) {
+    if (b.action === 'create_staff') {
+      const email = String(b.email).toLowerCase();
+      const dup = T().staff.find((x) => x.restaurant_id === b.restaurant_id && x.email === email);
+      if (dup) { Object.assign(dup, { active: true, role: b.role, display_name: b.display_name }); return { staff_id: dup.id, email, password: null, existing: true }; }
+      const sid = id('s');
+      T().staff.push({ id: sid, restaurant_id: b.restaurant_id as string, user_id: id('u'), display_name: b.display_name, role: b.role, email, active: true });
+      return { staff_id: sid, email, password: demoPw(), existing: false };
+    }
+    if (b.action === 'reset_password') { const st = T().staff.find((x) => x.id === b.staff_id)!; return { email: st.email, password: demoPw() }; }
+    if (b.action === 'create_restaurant') {
+      if (T().restaurants.some((r) => r.slug === b.slug)) throw new Error('slug_taken');
+      const rid = id('r');
+      T().restaurants.push({ ...(T().restaurants[0]), id: rid, slug: b.slug as string, name: b.name as string, city: b.city, plan: b.plan, active: true, created_at: now() });
+      for (let i = 1; i <= Number(b.tables || 0); i++) T().tables.push({ id: id('t'), restaurant_id: rid, number: i, seats: 4, qr_key: `k${i}`, waiter_id: null, label: null, active: true });
+      T().staff.push({ id: id('s'), restaurant_id: rid, user_id: id('u'), display_name: b.owner_name, role: 'owner', email: b.owner_email, active: true });
+      return { restaurant_id: rid, slug: b.slug, email: b.owner_email, password: demoPw(), existing: false };
+    }
+    throw new Error('unknown_action');
+  },
+};
 let session: { user: { id: string; email: string } } | null = null;
 const authListeners = new Set<(e: string, s: typeof session) => void>();
 
@@ -151,8 +183,15 @@ export const fakeSupabase = {
     try { const r = RPC[fn](args || {}); if (!fn.startsWith('guest_state')) notify(); return ok(JSON.parse(JSON.stringify(r ?? null))); }
     catch (e) { return fail((e as Error).message); }
   },
+  functions: {
+    invoke(name: string, { body }: { body: Record<string, unknown> }) {
+      try { const r = FUNCTIONS[name](body); notify(); return ok(r); }
+      catch (e) { const code = (e as Error).message; return Promise.resolve({ data: null, error: { message: code, context: new Response(JSON.stringify({ error: code })) } }); }
+    },
+  },
   auth: {
     getSession: () => ok({ session }),
+    updateUser: () => ok({ user: session?.user ?? null }),
     onAuthStateChange(cb: (e: string, s: typeof session) => void) { authListeners.add(cb); return { data: { subscription: { unsubscribe: () => authListeners.delete(cb) } } }; },
     signInWithPassword({ email }: { email: string }) {
       const uid = DEMO_USERS[email.toLowerCase()];

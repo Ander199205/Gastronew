@@ -79,6 +79,7 @@ export interface GuestMessage {
   phrase_key: string | null;
   phrase_args: Record<string, unknown> | null;
   body: string | null;
+  translation?: Record<string, string> | null;
   created_at: string;
   staff: string | null;
 }
@@ -111,6 +112,8 @@ export interface Staff {
   restaurant_id: string;
   display_name: string;
   role: 'owner' | 'manager' | 'waiter' | 'kitchen';
+  email?: string | null;
+  active?: boolean;
 }
 export interface TableRow {
   id: string;
@@ -164,6 +167,8 @@ export interface Message {
   phrase_key: string | null;
   phrase_args: Record<string, unknown> | null;
   body: string | null;
+  translation?: Record<string, string> | null;
+  source_lang?: string | null;
   read_by_staff: boolean;
   created_at: string;
 }

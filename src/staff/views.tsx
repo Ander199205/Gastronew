@@ -122,11 +122,14 @@ function TableDetail({ svc, table, visit, onClose }: { svc: Svc; table: TableRow
         {orders.map((o) => <OrderCard key={o.id} svc={svc} order={o} compact />)}
 
         {visit && <>
-          <h3>Chat mit dem Gast{visit.language !== 'de' && <small> (Schnellantworten werden übersetzt)</small>}</h3>
+          <h3>Chat mit dem Gast{visit.language !== 'de' && <small> (Gast liest auf {visit.language.toUpperCase()}, Nachrichten werden übersetzt)</small>}</h3>
           <div className="s-chat">
             {msgs.map((m) => (
               <div key={m.id} className={`s-bub ${m.sender}`}>
-                <p>{msgDe(m)}</p><time>{timeHM(m.created_at)}</time>
+                <p>{m.sender === 'guest' && m.translation?.de ? m.translation.de : msgDe(m)}</p>
+                {m.sender === 'guest' && m.translation?.de && <small className="s-orig">Original: {m.body}</small>}
+                {m.sender === 'staff' && m.translation && Object.entries(m.translation).map(([l, t]) => <small key={l} className="s-orig">{l.toUpperCase()}: {t}</small>)}
+                <time>{timeHM(m.created_at)}</time>
               </div>
             ))}
           </div>

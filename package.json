@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:e2e": "node tests/e2e/run.cjs && node tests/e2e/manage.cjs",
+    "test:e2e": "node tests/e2e/run.cjs && node tests/e2e/manage.cjs && node tests/e2e/team.cjs",
     "i18n": "node scripts/make_guest_i18n.mjs"
   },
   "dependencies": {

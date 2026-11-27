@@ -128,3 +128,4 @@
 .g-nav button.on { color: var(--c-primary); background: color-mix(in srgb, var(--c-primary) 10%, transparent); }
 .g-nav .dot { position: absolute; top: 2px; right: 30%; font-style: normal; background: var(--c-primary); color: var(--c-on-primary); font-size: 10px; border-radius: 999px; padding: 1px 6px; }
 .g-toast { position: fixed; left: 50%; top: 70px; transform: translateX(-50%); z-index: 60; max-width: calc(100% - 32px); background: var(--c-text); color: var(--c-bg); padding: 11px 16px; border-radius: 14px; font-size: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+.g-orig { display: block; font-size: 12px; opacity: .65; margin-top: 3px; font-style: italic; }
