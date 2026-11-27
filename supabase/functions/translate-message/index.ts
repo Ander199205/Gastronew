@@ -2,7 +2,7 @@
 // La llama la base de datos (pg_net) cada vez que se guarda un mensaje de chat con texto libre.
 // Traduce el texto del cliente al idioma del restaurante, y el del personal al idioma del cliente,
 // y lo guarda en messages.translation = { "<idioma>": "<texto>" }.
-// Secretos: TRANSLATE_HOOK_SECRET (el mismo que está en Vault) y ANTHROPIC_API_KEY.
+// La llamada se valida con la clave 'translate_hook_secret' guardada en Vault. Secreto necesario: ANTHROPIC_API_KEY.
 // Opcional: TRANSLATE_MODEL (por defecto claude-opus-5-5; claude-haiku-5-5 sale más barato).
 import Anthropic from 'npm:@anthropic-ai/sdk';
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -14,8 +14,8 @@ const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SE
 });
 
 Deno.serve(async (req) => {
-  const secret = Deno.env.get('TRANSLATE_HOOK_SECRET');
-  if (!secret || req.headers.get('x-hook-secret') !== secret) return new Response('forbidden', { status: 403 });
+  const { data: allowed } = await db.rpc('_translate_hook_ok', { p_secret: req.headers.get('x-hook-secret') || '' });
+  if (allowed !== true) return new Response('forbidden', { status: 403 });
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
   if (!apiKey) return new Response('no_api_key', { status: 200 }); // sin clave: el chat funciona, sin traducir
 

@@ -117,6 +117,14 @@ end $$;
 -- La URL y la clave compartida están en Vault: 'project_url' y 'translate_hook_secret'.
 create extension if not exists pg_net with schema extensions;
 
+-- La función translate-message comprueba la clave contra Vault (solo con la clave de servicio)
+create or replace function public._translate_hook_ok(p_secret text)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from vault.decrypted_secrets where name = 'translate_hook_secret' and decrypted_secret = p_secret and p_secret <> '');
+$$;
+revoke execute on function public._translate_hook_ok(text) from public, anon, authenticated;
+grant execute on function public._translate_hook_ok(text) to service_role;
+
 create or replace function public._notify_translate()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare v_url text; v_secret text;
