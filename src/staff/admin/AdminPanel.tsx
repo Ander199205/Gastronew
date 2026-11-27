@@ -10,7 +10,8 @@ interface R {
   id: string; slug: string; name: string; city: string | null; plan: 'carta' | 'mesa'; active: boolean; created_at: string;
   staff: number; tables: number; items: number; visits_30d: number; orders_30d: number; last_activity: string | null;
 }
-const PRICE = { carta: 29, mesa: 79 };
+// Basic = solo carta digital, Pro = todo (pedidos, chat, cuenta). Precios de lista sin el descuento del primer año.
+const PRICE = { carta: 50, mesa: 120 };
 const slugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'ss')
   .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
 const day = (s: string | null) => (s ? new Date(s).toLocaleDateString('de-DE') : '–');
@@ -73,7 +74,7 @@ export default function AdminPanel({ onOpen }: { onOpen: (rid: string) => void }
             </div>
             <div className="a-ctl">
               <select className="s-select" value={r.plan} onChange={(e) => patch(r, { plan: e.target.value as R['plan'] })} aria-label="Plan">
-                <option value="carta">Carta · 29 €</option><option value="mesa">Mesa · 79 €</option>
+                <option value="carta">Basic · 50 €</option><option value="mesa">Pro · 120 €</option>
               </select>
               <button className={`s-btn sm ${r.active ? 'danger' : ''}`} onClick={() => {
                 if (!r.active || window.confirm(`${r.name} deaktivieren? Die Speisekarte ist dann für Gäste nicht mehr erreichbar.`)) patch(r, { active: !r.active });
@@ -94,7 +95,7 @@ export default function AdminPanel({ onOpen }: { onOpen: (rid: string) => void }
             </label>
             <div className="m-grid3">
               <label className="m-field">Stadt<input value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })} /></label>
-              <label className="m-field">Plan<select value={f.plan} onChange={(e) => setF({ ...f, plan: e.target.value as 'carta' | 'mesa' })}><option value="carta">Carta · 29 €</option><option value="mesa">Mesa · 79 €</option></select></label>
+              <label className="m-field">Plan<select value={f.plan} onChange={(e) => setF({ ...f, plan: e.target.value as 'carta' | 'mesa' })}><option value="carta">Basic · 50 €</option><option value="mesa">Pro · 120 €</option></select></label>
               <label className="m-field">Tische<input type="number" min={0} max={80} value={f.tables} onChange={(e) => setF({ ...f, tables: Number(e.target.value) })} /></label>
             </div>
             <h3 style={{ margin: '14px 0 0' }}>Inhaber-Zugang</h3>

@@ -60,6 +60,13 @@ export default function GuestApp() {
   const prevStatus = useRef<Record<string, OrderStatus>>({});
   const seenMsgs = useRef<Set<string> | null>(null);
   const [unread, setUnread] = useState(0);
+  const [accepted, setAccepted] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [payAt, setPayAt] = useState<'table' | 'counter'>('table');
+  const pkKey = `abg:pk:${slug}`;
+  const [profileKey, setProfileKey] = useState<string | null>(() => store.get(pkKey));
+  const [stayEmail, setStayEmail] = useState('');
+  const [stayOk, setStayOk] = useState(false);
 
   const T = GUEST_I18N[lang];
   const g = useCallback((k: string, a?: Record<string, unknown>) => fill(GUEST_I18N[lang][k] ?? GUEST_I18N.de[k] ?? k, a), [lang]);
@@ -132,19 +139,25 @@ export default function GuestApp() {
     if (k === 'invalid_table') return g('badTable');
     if (k === 'ordering_disabled') return g('noOrdering');
     if (k === 'sold_out') return g('soldoutErr');
+    if (k === 'terms_required' || k === 'consent_required') return g('acceptReq');
+    if (k === 'bad_email') return g('badEmail');
     return g('error');
   };
 
   async function checkIn() {
     if (!table) return;
+    if (!accepted) { flash(g('acceptReq')); return; }
     setBusy(true);
     store.set('abg:name', name.trim());
     const { data, error } = await supabase.rpc('guest_open', {
       p_slug: slug, p_table: table, p_key: qrKey, p_name: name.trim() || null, p_guests: people, p_lang: lang,
+      p_accept: true, p_profile_key: profileKey,
     });
     setBusy(false);
     if (error) { flash(errText(error)); return; }
-    const tok = (data as { token: string }).token;
+    const res = data as { token: string; regular_name?: string | null };
+    const tok = res.token;
+    if (res.regular_name) flash(g('welcomeBack', { name: res.regular_name }));
     store.set(tokenKey, tok);
     prevStatus.current = {}; seenMsgs.current = null;
     setToken(tok);
@@ -184,10 +197,30 @@ export default function GuestApp() {
   async function requestBill() {
     if (!token) return;
     setBusy(true);
-    const { error } = await supabase.rpc('guest_request_bill', { p_token: token, p_tip_percent: tip });
+    const { error } = await supabase.rpc('guest_request_bill', { p_token: token, p_tip_percent: tip, p_pay_at: payAt });
     setBusy(false);
     if (error) { flash(errText(error)); return; }
     refresh();
+  }
+
+  async function saveProfile() {
+    if (!token) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(stayEmail.trim())) { flash(g('badEmail')); return; }
+    if (!stayOk) { flash(g('acceptReq')); return; }
+    setBusy(true);
+    const { data, error } = await supabase.rpc('guest_save_profile', { p_token: token, p_email: stayEmail.trim(), p_name: name.trim() || null, p_consent: true });
+    setBusy(false);
+    if (error) { flash(errText(error)); return; }
+    store.set(pkKey, data as string); setProfileKey(data as string);
+    flash(g('staySaved'));
+    refresh();
+  }
+
+  async function forgetMe() {
+    if (!profileKey) return;
+    await supabase.rpc('guest_forget', { p_profile_key: profileKey });
+    store.set(pkKey, null); setProfileKey(null);
+    flash(g('forgotten'));
   }
 
   async function rate(stars: number) {
@@ -293,6 +326,28 @@ export default function GuestApp() {
     );
   };
 
+  // --- "¿te recordamos?" (solo si aún no es cliente habitual)
+  const stayEl = state && !state.visit.regular && !profileKey && (
+    <section className="g-stay">
+      <h3>{g('stayT')}</h3>
+      <p className="g-muted">{g('stayS')}</p>
+      <label className="g-field">{g('name')}<input value={name} onChange={(e) => setName(e.target.value)} maxLength={30} autoComplete="given-name" placeholder={g('namePh')} /></label>
+      <label className="g-field">E-Mail<input type="email" value={stayEmail} onChange={(e) => setStayEmail(e.target.value)} autoComplete="email" placeholder={g('emailPh')} /></label>
+      <label className="g-check"><input type="checkbox" checked={stayOk} onChange={(e) => setStayOk(e.target.checked)} /><span>{g('stayConsent', { r: r.name })}</span></label>
+      <button className="g-btn ghost" disabled={busy} onClick={saveProfile}>{g('stayBtn')}</button>
+    </section>
+  );
+  const termsEl = termsOpen && (
+    <div className="g-sheet-bg" onClick={() => setTermsOpen(false)}>
+      <div className="g-sheet" role="dialog" aria-label={g('termsT')} onClick={(e) => e.stopPropagation()}>
+        <h2 className="g-h sm">{g('termsT')}</h2>
+        <p className="g-muted">{g('termsTxt', { imp: r.imprint || r.name })}</p>
+        {profileKey && <button className="g-link" onClick={() => { forgetMe(); setTermsOpen(false); }}>{g('forgetMe')}</button>}
+        <button className="g-btn" onClick={() => setTermsOpen(false)}>{g('close')}</button>
+      </div>
+    </div>
+  );
+
   // --- gracias (visita cerrada)
   if (closed && state) {
     return (
@@ -310,9 +365,11 @@ export default function GuestApp() {
             ))}
           </div>
           {state.visit.rating && <p className="g-muted">{g('rated')}</p>}
+          {stayEl}
           <button className="g-btn ghost" onClick={newVisit}>{g('newvisit')}</button>
           {nearbyEl(g('whereNow'), g('nearRest', { r: r.name }))}
         </main>
+        {termsEl}
         {toastEl}
       </div>
     );
@@ -364,9 +421,17 @@ export default function GuestApp() {
         )}
         <div className="g-line total"><span /><span>{g('total')}</span><span className="pr">{eur(bill.sum + Math.round(bill.sum * (billRequested ? state.visit.tip_percent : tip) / 100))}</span></div>
         <p className="g-legal">{g('preview')}</p>
+        {!billRequested && (
+          <div className="g-tip"><span>{g('payWhere')}</span>
+            <div className="g-seg">{(['table', 'counter'] as const).map((p) => <button key={p} className={payAt === p ? 'on' : ''} onClick={() => setPayAt(p)}>{g(p === 'table' ? 'payTable' : 'payCounter')}</button>)}</div>
+          </div>
+        )}
         {billRequested ? (
           <>
-            <div className="g-info"><b>{g('comingB', { w: waiter })}</b>{g('comingT')}</div>
+            {state.visit.pay_at === 'counter'
+              ? <div className="g-info"><b>{g('counterB')}</b>{g('counterT')}</div>
+              : <div className="g-info"><b>{g('comingB', { w: waiter })}</b>{g('comingT')}</div>}
+            {stayEl}
             {nearbyEl(g('eveningT'), g('eveningS'))}
             <button className="g-card-btn" onClick={() => setScreen('chat')}><b>{g('askB', { w: waiter })}</b><span>{g('askS')}</span></button>
           </>
@@ -393,7 +458,9 @@ export default function GuestApp() {
               <button className="p" onClick={() => setPeople((p) => Math.min(20, p + 1))} aria-label={g('more')}>+</button>
             </div>
           </div>
-          <button className="g-btn" disabled={busy} onClick={checkIn}>{g('checkin')}</button>
+          <label className="g-check"><input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+            <span>{g('accept')} <button type="button" className="g-link" onClick={() => setTermsOpen(true)}>{g('acceptLink')}</button></span></label>
+          <button className="g-btn" disabled={busy || !accepted} onClick={checkIn}>{g('checkin')}</button>
           <p className="g-legal"><b>{g('paperB')}</b> {g('paperT', { w: g('noWaiter') })}</p>
         </section>
       )}
@@ -444,7 +511,7 @@ export default function GuestApp() {
         </section>
       ))}
       <p className="g-legal g-pad-x">{g('allerg')}</p>
-      <p className="g-legal g-pad-x">{g('privacy', { imp: r.imprint || r.name })}</p>
+      <p className="g-legal g-pad-x">{g('privacy', { imp: r.imprint || r.name })} <button type="button" className="g-link" onClick={() => setTermsOpen(true)}>{g('termsT')}</button></p>
       <p className="g-sig">{g('sig')} <b>abWeb</b> solutions</p>
     </main>
   );
@@ -484,6 +551,7 @@ export default function GuestApp() {
         </div>
       )}
 
+      {termsEl}
       {checkedIn && (
         <nav className="g-nav" aria-label="Navigation">
           {(['menu', 'chat', 'bill'] as Screen[]).map((s) => (

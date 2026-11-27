@@ -151,3 +151,7 @@
 .s-demo-login { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .s-demo-login span { width: 100%; font-size: 12px; color: var(--mu); }
 .s-orig { display: block; font-size: 12px; opacity: .7; margin-top: 3px; font-style: italic; }
+.s-regular { background: color-mix(in srgb, #f5c518 14%, var(--sf)); border-radius: 14px; padding: 10px 12px; margin-bottom: 10px; display: grid; gap: 3px; }
+.s-regular small { color: var(--mu); }
+.s-regular .s-compose { margin-top: 6px; }
+.s-paybox { background: var(--sf2); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; font-size: 14px; font-weight: 600; }

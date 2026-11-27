@@ -83,6 +83,7 @@ async function login(ctx, email, errors) {
   const g = await gctx.newPage();
   g.on('pageerror', e => errors.push('guest: ' + e.message));
   await g.goto(`${B}/r/casalucia/mesa/3?k=key3`);
+  await g.locator('.g-checkin .g-check input').check();
   await g.locator('.g-checkin .g-btn').click();
   await g.locator('.g-nav').waitFor();
   await g.locator('.g-nav button').nth(1).click();

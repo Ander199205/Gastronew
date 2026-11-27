@@ -1,6 +1,7 @@
 // Genera src/i18n/guest.ts a partir de las frases de la demo guiada (6 idiomas),
 // con textos neutros (sin "camarera") y sin datos de ejemplo.
 import fs from 'node:fs';
+import { EXTRA } from './guest_i18n_extra.mjs';
 const src = JSON.parse(fs.readFileSync('src/i18n/guest-demo.json', 'utf8'));
 const O = {
   de: { nearRest: 'Ganz in der Nähe von {r}.', checkinTxt: 'Checken Sie an Tisch {n} ein. Dann bestellen Sie direkt vom Handy und schreiben dem Service im Chat.', waiterRole: 'Service · antwortet meist in 1 Minute', allergTail: 'Fragen Sie unser Team nach der gedruckten Allergenkarte.', noWaiter: 'unser Service-Team', badTable: 'Dieser QR-Code ist ungültig. Bitte scannen Sie den Code auf Ihrem Tisch erneut oder fragen Sie unser Team.', noOrdering: 'Bestellungen über das Handy sind hier nicht aktiv. Unser Team nimmt Ihre Bestellung gern am Tisch auf.', error: 'Etwas ist schiefgelaufen. Bitte versuchen Sie es noch einmal.', soldoutErr: 'Ein Gericht ist gerade ausverkauft und wurde entfernt.', st_cancelled: 'wurde storniert', closedB: 'Bezahlt. Danke für Ihren Besuch!', offline: 'Keine Verbindung. Wir versuchen es weiter…', unknownR: 'Restaurant nicht gefunden.', menuOnly: 'Speisekarte' },
@@ -25,6 +26,7 @@ for (const [l, d] of Object.entries(src)) {
   if (l === 'en') o.comingB = '{w} is coming with the card terminal.';
   o.paperT = d.paperT.replace('{w}', '{w}');
   for (const k of ['noWaiter', 'badTable', 'noOrdering', 'error', 'soldoutErr', 'st_cancelled', 'closedB', 'offline', 'unknownR', 'menuOnly']) o[k] = ov[k];
+  Object.assign(o, EXTRA[l]);
   out[l] = o;
 }
 const ts = `// Generado con scripts/make_guest_i18n.mjs: no editar a mano.\n// Textos de la carta del cliente en 6 idiomas. El personal siempre ve alemán.\nexport const GUEST_LANGS = ${JSON.stringify([['de','Deutsch'],['en','English'],['es','Español'],['it','Italiano'],['fr','Français'],['tr','Türkçe']])} as const;\nexport type Lang = (typeof GUEST_LANGS)[number][0];\nexport const GUEST_I18N: Record<Lang, Record<string, string>> = ${JSON.stringify(out, null, 1)};\n`;
