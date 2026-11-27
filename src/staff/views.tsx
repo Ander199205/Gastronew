@@ -14,7 +14,7 @@ const LANG_DE: Record<string, string> = { de: 'Deutsch', en: 'Englisch', es: 'Sp
 const WAITER_QUICK = ['w_coming', 'w_onway', 'w_bring', 'w_gf'];
 const SYS: Record<string, string> = {
   sys_checkin: '{name} hat eingecheckt ({guests} Pers.)',
-  sys_bill: 'Rechnung angefordert (Trinkgeld {tip} %)',
+  sys_bill: 'Rechnung angefordert (Trinkgeld {tip} %){where}',
   sys_closed: 'Bezahlt, Tisch freigegeben',
 };
 
@@ -23,6 +23,8 @@ function msgDe(m: Message) {
   if (m.phrase_key) {
     const args = { ...(m.phrase_args || {}) } as Record<string, unknown>;
     if (m.phrase_key === 'sys_checkin' && !args.name) args.name = 'Gast';
+    if (m.phrase_key === 'sys_checkin' && args.regular) args.name = `${args.name} (Stammgast)`;
+    if (m.phrase_key === 'sys_bill') args.where = args.at === 'counter' ? ' · zahlt an der Kasse' : ' · zahlt am Tisch';
     return fill(SYS[m.phrase_key] || GUEST_I18N.de[m.phrase_key] || m.phrase_key, args);
   }
   return m.body || '';
@@ -64,7 +66,7 @@ export function Tables({ svc }: { svc: Svc }) {
             <button key={t.id} className={`s-table st-${state} ${t.id === tableId ? 'sel' : ''}`} onClick={() => nav(`/app/tische/${t.id}`)}>
               <span className="n">{t.number}</span>
               <span className="l">
-                {!v ? `Frei · ${t.seats} Plätze` : v.status === 'bill_requested' ? 'Rechnung!' : `${v.guest_name || 'Gäste'} · ${v.guests} P.`}
+                {!v ? `Frei · ${t.seats} Plätze` : v.status === 'bill_requested' ? (v.pay_at === 'counter' ? 'Kommt zur Kasse' : 'Rechnung!') : `${v.guest_name || 'Gäste'} · ${v.guests} P.`}
               </span>
               {v && <span className="t">seit {timeHM(v.created_at)} · {eur(orderTotal(svc, v.id))}</span>}
               <span className="badges">
@@ -80,6 +82,8 @@ export function Tables({ svc }: { svc: Svc }) {
     </div>
   );
 }
+
+interface Regular { id: string; name: string | null; visits: number; since: string; note: string | null; favorites: string[] }
 
 function TableDetail({ svc, table, visit, onClose }: { svc: Svc; table: TableRow; visit?: Visit; onClose: () => void }) {
   const [pad, setPad] = useState(false);
@@ -103,6 +107,18 @@ function TableDetail({ svc, table, visit, onClose }: { svc: Svc; table: TableRow
     if (!window.confirm(`Tisch ${table.number} bezahlt und freigeben?`)) return;
     if (await call('staff_close_visit', { p_visit: visit.id })) { svc.reload(); onClose(); }
   }
+  const [regular, setRegular] = useState<Regular | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+  useEffect(() => {
+    setRegular(null);
+    if (!visit?.guest_profile_id) return;
+    supabase.rpc('staff_regular', { p_visit: visit.id }).then(({ data }) => { setRegular(data as Regular | null); setNoteDraft((data as Regular | null)?.note || ''); });
+  }, [visit?.id, visit?.guest_profile_id]);
+  async function saveNote() {
+    if (!regular) return;
+    const { error } = await supabase.from('guest_profiles').update({ note: noteDraft.trim() || null }).eq('id', regular.id);
+    if (error) alertError(error.message); else setRegular({ ...regular, note: noteDraft.trim() || null });
+  }
   const total = visit ? orderTotal(svc, visit.id) : 0;
   const tipCents = visit ? Math.round(total * visit.tip_percent / 100) : 0;
 
@@ -115,6 +131,16 @@ function TableDetail({ svc, table, visit, onClose }: { svc: Svc; table: TableRow
         </div>
       </div>
 
+      {regular && !pad && (
+        <div className="s-regular">
+          <b>★ Stammgast: {regular.name || 'ohne Namen'}</b>
+          <small>{regular.visits}. Besuch · Gast seit {new Date(regular.since).toLocaleDateString('de-DE')}</small>
+          {regular.favorites.length > 0 && <small>Bestellt gern: {regular.favorites.join(', ')}</small>}
+          <div className="s-compose"><input value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} maxLength={300} placeholder="Notiz, z. B. Tisch am Fenster, keine Nüsse" />
+            <button className="s-btn sm" disabled={noteDraft === (regular.note || '')} onClick={saveNote}>Speichern</button></div>
+        </div>
+      )}
+      {visit?.status === 'bill_requested' && !pad && <div className="s-paybox">{visit.pay_at === 'counter' ? 'Gast kommt zum Bezahlen an die Kasse. Beleg aus der Kasse geben.' : 'Gast möchte am Tisch bezahlen. Beleg aus der Kasse mitbringen.'}</div>}
       {pad ? <OrderPad svc={svc} table={table} visit={visit} onDone={() => setPad(false)} /> : <>
         <button className="s-btn primary wide" onClick={() => setPad(true)}>＋ Bestellung aufnehmen</button>
 

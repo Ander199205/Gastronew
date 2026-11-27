@@ -8,6 +8,7 @@ import './styles/base.css';
 import Home from './Home';
 
 const GuestApp = lazy(() => import('./guest/GuestApp'));
+const ConfirmPage = lazy(() => import('./guest/ConfirmPage'));
 const StaffApp = lazy(() => import('./staff/StaffApp'));
 const DemoHome = lazy(() => import('./demo/DemoHome'));
 const DEMO = import.meta.env.VITE_DEMO === '1';
@@ -29,6 +30,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<Home />} />
           {/* carta del cliente: /r/casalucia/mesa/7?k=CLAVE (el QR de cada mesa) */}
           <Route path="/r/:slug" element={<GuestApp />} />
+          <Route path="/r/:slug/bestaetigen" element={<ConfirmPage />} />
           <Route path="/r/:slug/mesa/:table" element={<GuestApp />} />
           <Route path="/r/:slug/tisch/:table" element={<GuestApp />} />
           {/* app del personal (PWA, en alemán) */}

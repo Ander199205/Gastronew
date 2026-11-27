@@ -5,6 +5,7 @@ import BrandEditor from './BrandEditor';
 import MenuEditor from './MenuEditor';
 import { NearbyEditor, TablesEditor } from './TablesNearbyEditor';
 import TeamEditor from './TeamEditor';
+import RegularsEditor from './RegularsEditor';
 import type { Staff } from '../../lib/types';
 import '../../styles/manage.css';
 
@@ -24,6 +25,7 @@ export default function Manage({ rid, role, onChanged }: { rid: string; role: St
         <NavLink to="/app/verwaltung/tische">Tische</NavLink>
         <NavLink to="/app/verwaltung/tipps">Tipps in der Nähe</NavLink>
         <NavLink to="/app/verwaltung/team">Team</NavLink>
+        <NavLink to="/app/verwaltung/stammgaeste">Stammgäste</NavLink>
       </nav>
       <Routes>
         <Route index element={<Navigate to="karte" replace />} />
@@ -31,6 +33,7 @@ export default function Manage({ rid, role, onChanged }: { rid: string; role: St
         <Route path="design" element={<BrandEditor key={rid} rid={rid} onSaved={saved} />} />
         <Route path="tische" element={<TablesEditor key={rid} rid={rid} onSaved={saved} />} />
         <Route path="tipps" element={<NearbyEditor key={rid} rid={rid} languages={languages} />} />
+        <Route path="stammgaeste" element={<RegularsEditor key={rid} rid={rid} />} />
         <Route path="team" element={<TeamEditor key={rid} rid={rid} myRole={role} onSaved={onChanged} />} />
       </Routes>
     </div>

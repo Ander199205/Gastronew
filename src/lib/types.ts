@@ -93,6 +93,8 @@ export interface GuestState {
     waiter: string | null;
     tip_percent: number;
     rating: number | null;
+    pay_at?: 'table' | 'counter' | null;
+    regular?: boolean;
     created_at: string;
   };
   orders: {
@@ -135,6 +137,8 @@ export interface Visit {
   tip_percent: number;
   created_at: string;
   bill_requested_at: string | null;
+  pay_at?: 'table' | 'counter' | null;
+  guest_profile_id?: string | null;
 }
 export interface Order {
   id: string;

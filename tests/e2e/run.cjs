@@ -15,6 +15,7 @@ const shot = (p, n) => p.screenshot({ path: `${__dirname}/shots/${n}.png`, fullP
   await g.getByText('Hacer check-in', { exact: false }).first().waitFor({ timeout: 8000 }).catch(() => {});
   await shot(g, '01-checkin');
   await g.fill('input[autocomplete=given-name]', 'Ana');
+  await g.locator('.g-checkin .g-check input').check();
   await g.locator('.g-checkin .g-btn').click();
   await g.locator('.g-nav').waitFor();
   await g.locator('.g-add').first().click();
