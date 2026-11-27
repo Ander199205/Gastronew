@@ -328,7 +328,8 @@ export default function GuestApp() {
       <div className="g-chat">
         {state.messages.filter((m) => m.sender !== 'system').map((m) => (
           <div key={m.id} className={`g-bub ${m.sender === 'guest' ? 'me' : 'them'}`}>
-            <p>{m.phrase_key ? g(m.phrase_key, m.phrase_args || {}) : m.body}</p>
+            <p>{m.phrase_key ? g(m.phrase_key, m.phrase_args || {}) : (m.sender === 'staff' && m.translation?.[lang]) || m.body}</p>
+            {!m.phrase_key && m.sender === 'staff' && m.translation?.[lang] && <small className="g-orig">{m.body}</small>}
             <time>{timeHM(m.created_at)}</time>
           </div>
         ))}

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Navigate, Route, Routes, useSearchParams } from 'react-router-dom';
+import { NavLink, Navigate, Route, Routes, useNavigate, useSearchParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { DEMO, supabase } from '../lib/supabase';
 import type { Staff } from '../lib/types';
 import { useService } from './useService';
 import { Kitchen, MenuToggles, Orders, QrCodes, Tables } from './views';
 import Manage from './manage/Manage';
+import AdminPanel from './admin/AdminPanel';
 import '../styles/staff.css';
 
 export default function StaffApp() {
@@ -19,6 +20,7 @@ export default function StaffApp() {
 
   if (session === undefined) return <div className="s-root s-center">Lädt…</div>;
   if (!session) return <Login />;
+  if (session.user.user_metadata?.must_change_password) return <ChangePassword first />;
   return <Signed userId={session.user.id} email={session.user.email || ''} />;
 }
 
@@ -63,11 +65,45 @@ function Login() {
   );
 }
 
+/** Eigenes Passwort wählen (Pflicht nach dem ersten Anmelden mit dem vorläufigen Passwort). */
+function ChangePassword({ first, onDone }: { first?: boolean; onDone?: () => void }) {
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (pw.length < 8) return setErr('Mindestens 8 Zeichen.');
+    if (pw !== pw2) return setErr('Die Passwörter stimmen nicht überein.');
+    setBusy(true); setErr('');
+    const { error } = await supabase.auth.updateUser({ password: pw, data: { must_change_password: false } });
+    setBusy(false);
+    if (error) return setErr(error.message.includes('different') ? 'Bitte ein neues Passwort wählen.' : 'Das hat nicht geklappt. Bitte erneut versuchen.');
+    onDone?.();
+  }
+  const form = (
+    <form className="s-login s-pw" onSubmit={submit}>
+      <h1>{first ? 'Willkommen!' : 'Passwort ändern'}</h1>
+      {first && <p>Bitte wählen Sie jetzt Ihr eigenes Passwort. Das vorläufige gilt danach nicht mehr.</p>}
+      <label>Neues Passwort<input type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} required minLength={8} /></label>
+      <label>Wiederholen<input type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} required /></label>
+      {err && <p className="s-err">{err}</p>}
+      <button className="s-btn primary" disabled={busy}>{busy ? 'Speichert…' : 'Speichern'}</button>
+      {first ? <button type="button" className="s-btn" onClick={() => supabase.auth.signOut()}>Abmelden</button>
+        : <button type="button" className="s-btn" onClick={onDone}>Abbrechen</button>}
+    </form>
+  );
+  return first ? <div className="s-root s-center">{form}</div> : <div className="m-modal-bg" onClick={onDone}><div onClick={(e) => e.stopPropagation()}>{form}</div></div>;
+}
+
 function Signed({ userId, email }: { userId: string; email: string }) {
   const [me, setMe] = useState<Staff[] | null>(null);
   const [admin, setAdmin] = useState(false);
   const [rid, setRid] = useState<string | null>(() => localStorage.getItem('abg:rid'));
   const [names, setNames] = useState<Record<string, string>>({});
+  const [pwOpen, setPwOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const nav = useNavigate();
 
   useEffect(() => {
     (async () => {
@@ -89,7 +125,7 @@ function Signed({ userId, email }: { userId: string; email: string }) {
       setMe(rows);
       setRid((cur) => (cur && rows.some((x) => x.restaurant_id === cur) ? cur : rows[0]?.restaurant_id || null));
     })();
-  }, [userId]);
+  }, [userId, reloadKey]);
 
   useEffect(() => { if (rid) localStorage.setItem('abg:rid', rid); }, [rid]);
   const svc = useService(rid);
@@ -125,6 +161,7 @@ function Signed({ userId, email }: { userId: string; email: string }) {
               {me.map((x) => <option key={x.restaurant_id} value={x.restaurant_id}>{names[x.restaurant_id] || x.restaurant_id}</option>)}
             </select>
           )}
+          {!DEMO && <button className="s-btn sm" onClick={() => setPwOpen(true)}>Passwort</button>}
           <button className="s-btn sm" onClick={() => supabase.auth.signOut()}>Abmelden</button>
         </div>
       </header>
@@ -135,6 +172,7 @@ function Signed({ userId, email }: { userId: string; email: string }) {
         <NavLink to="/app/karte">Karte</NavLink>
         {isManager && <NavLink to="/app/qr">QR-Codes</NavLink>}
         {isManager && <NavLink to="/app/verwaltung">Verwaltung</NavLink>}
+        {admin && <NavLink to="/app/admin">abWeb Admin</NavLink>}
       </nav>
       <main className="s-main">
         <Routes>
@@ -145,10 +183,12 @@ function Signed({ userId, email }: { userId: string; email: string }) {
           <Route path="kueche" element={<Kitchen svc={svc} />} />
           <Route path="karte" element={<MenuToggles svc={svc} />} />
           <Route path="qr" element={isManager ? <QrCodes svc={svc} /> : <Navigate to="/app" replace />} />
-          <Route path="verwaltung/*" element={isManager && rid ? <Manage rid={rid} onChanged={svc.reload} /> : <Navigate to="/app" replace />} />
+          <Route path="verwaltung/*" element={isManager && rid ? <Manage rid={rid} role={role} onChanged={svc.reload} /> : <Navigate to="/app" replace />} />
+          <Route path="admin" element={admin ? <AdminPanel onOpen={(id) => { setReloadKey((k) => k + 1); setRid(id); nav('/app/verwaltung'); }} /> : <Navigate to="/app" replace />} />
           <Route path="*" element={<Navigate to="/app" replace />} />
         </Routes>
       </main>
+      {pwOpen && <ChangePassword onDone={() => setPwOpen(false)} />}
     </div>
   );
 }

@@ -10,6 +10,7 @@ const ROLES = [
   { k: 'carmen', label: 'Camarera (Carmen)', path: '/app/tische' },
   { k: 'kueche', label: 'Cocina', path: '/app/kueche' },
   { k: 'lucia', label: 'Dueña (Lucía): panel', path: '/app/verwaltung' },
+  { k: 'admin', label: 'abWeb (tú): admin', path: '/app/admin' },
 ];
 
 /** Demo: el móvil del cliente y la app del personal, lado a lado y conectados (mismo Supabase simulado). */
