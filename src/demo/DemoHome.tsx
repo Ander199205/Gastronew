@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import { resetDemo } from './fakeSupabase';
 import './demo.css';
 
@@ -30,7 +31,7 @@ export default function DemoHome() {
         <button className="d-reset" onClick={reset}>Reiniciar demo</button>
       </header>
       <p className="d-intro">
-        Es la app real con datos de prueba que solo viven en esta página. Pide desde el móvil del cliente y mira cómo llega a la camarera. Cambia a <b>Cocina</b> para marcar el plato como listo, o a <b>Dueña</b> para editar la carta y los colores.
+        Es la app real con datos de prueba que solo viven en esta página. Pide desde el móvil del cliente y mira cómo llega a la camarera. Cambia a <b>Cocina</b> para marcar el plato como listo, a <b>Dueña</b> para editar la carta, los colores y el equipo, o a <b>abWeb</b> para ver tu panel con todos los restaurantes.
       </p>
       <div className="d-tabs" role="tablist">
         <button className={tab === 'guest' ? 'on' : ''} onClick={() => setTab('guest')}>Cliente</button>
@@ -47,7 +48,7 @@ export default function DemoHome() {
         </section>
         <section className={`d-col ${tab === 'staff' ? 'show' : ''}`}>
           <h2>Personal <small>
-            {ROLES.map((r) => <button key={r.k} className={r.k === role.k ? 'on' : ''} onClick={() => setRole(r)}>{r.label}</button>)}
+            {ROLES.map((r) => <button key={r.k} className={r.k === role.k ? 'on' : ''} onClick={() => { supabase.auth.signInWithPassword({ email: `${r.k}@casalucia.demo`, password: 'demo' }); setRole(r); }}>{r.label}</button>)}
           </small></h2>
           <div className="d-frame tablet"><div className="d-screen">
             <MemoryRouter key={`s${v}${role.k}`} initialEntries={[`${role.path}?as=${role.k}`]}>
